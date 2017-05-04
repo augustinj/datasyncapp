@@ -59,7 +59,7 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class MainActivity extends Activity implements SensorEventListener {
+public class MainActivity extends Activity {
     private Camera mCamera;
     private CameraPreview mPreview;
     private MediaRecorder mediaRecorder;
@@ -465,39 +465,39 @@ public class MainActivity extends Activity implements SensorEventListener {
     float gyro_y = 0;
     float gyro_z = 0;
 
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-    }
-
-    @Override
-    public void onSensorChanged(SensorEvent event) {
-
-        if(event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
-            ta_acc = System.currentTimeMillis();
-            linear_acc_x = event.values[0];
-            linear_acc_y = event.values[1];
-            linear_acc_z = event.values[2];
-        }
-        else if (event.sensor.getType() == Sensor.TYPE_ORIENTATION) {
-            heading = Math.round(event.values[0]);
-            ta_h = System.currentTimeMillis();
-            if(heading >= 270){
-                heading = heading + 90;
-                heading = heading - 360;
-            }
-            else{
-                heading = heading + 90;
-            }
-        }
-        else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE){
-            ta_gy = System.currentTimeMillis();
-            gyro_x = event.values[0];
-            gyro_y = event.values[1];
-            gyro_z = event.values[2];
-        }
+//    @Override
+//    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+//    }
+//
+//    @Override
+//    public void onSensorChanged(SensorEvent event) {
+//
+//        if(event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
+//            ta_acc = System.currentTimeMillis();
+//            linear_acc_x = event.values[0];
+//            linear_acc_y = event.values[1];
+//            linear_acc_z = event.values[2];
+//        }
+//        else if (event.sensor.getType() == Sensor.TYPE_ORIENTATION) {
+//            heading = Math.round(event.values[0]);
+//            ta_h = System.currentTimeMillis();
+//            if(heading >= 270){
+//                heading = heading + 90;
+//                heading = heading - 360;
+//            }
+//            else{
+//                heading = heading + 90;
+//            }
+//        }
+//        else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE){
+//            ta_gy = System.currentTimeMillis();
+//            gyro_x = event.values[0];
+//            gyro_y = event.values[1];
+//            gyro_z = event.values[2];
+//        }
 //        String setTextText = "Heading: " + heading + " Speed: " + speed;
 //        tv.setText(setTextText);
-    }
+//    }
     String[] options = {"1080p","720p","480p"};
     String[] options1 = {"15 Hz","10 Hz"};
     String[] options2 = {"10 fps","20 fps","30 fps", "60 fps", "240 fps"};
