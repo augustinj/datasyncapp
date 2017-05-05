@@ -1,14 +1,5 @@
 package com.example.juju.e_labvideoapp;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -17,46 +8,33 @@ import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
-import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import android.text.InputType;
-import android.view.inputmethod.EditorInfo;
-import android.view.*; //?
-import android.content.Context;
-import android.location.Location;
-import android.location.LocationManager;
-import android.location.LocationListener;
-
-import android.location.GpsStatus.Listener;
-import android.os.Bundle;
-import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.EditText;
-
-import java.util.List;
-import java.util.Locale;
-import java.util.Timer;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.TimerTask;
 
 public class MainActivity extends Activity {
@@ -69,17 +47,17 @@ public class MainActivity extends Activity {
     private Chronometer chrono;
 //    private TextView tv;
     private TextView txt;
-    private float timeS;
+    private long timeS;
     private long timeS1;
 
-    private Thread gyroTh;
-    private Thread accTh;
+    private SensorThread gyroTh;
+    private SensorThread accTh;
 
     int quality = 0;
     int rate = 100;
     String timeStampFile;
     int clickFlag = 0;
-    Timer timer;
+//    Timer timer;
     int VideoFrameRate = 24;
 
     LocationListener locationListener;
@@ -148,9 +126,9 @@ public class MainActivity extends Activity {
             mCamera = Camera.open(findBackFacingCamera());
             mPreview.refreshCamera(mCamera);
         }
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, head, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
+//        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+//        sensorManager.registerListener(this, head, SensorManager.SENSOR_DELAY_FASTEST);
+//        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
 
 
 
@@ -187,7 +165,7 @@ public class MainActivity extends Activity {
         // when on Pause, release camera in order to be used from other
         // applications
         releaseCamera();
-        sensorManager.unregisterListener(this);
+//        sensorManager.unregisterListener(this);
 //        gyroTh.stop();
 
     }
@@ -238,6 +216,7 @@ public class MainActivity extends Activity {
                 }
 */
             } else {
+
                 timeS1 = System.currentTimeMillis();
                 timeStampFile = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
                 File wallpaperDirectory = new File(Environment.getExternalStorageDirectory().getPath()+"/elab/");
@@ -250,17 +229,30 @@ public class MainActivity extends Activity {
                     finish();
                 }
 
+                // Creation of the Sensor Threads
+                gyroTh = new SensorThread(sensorManager, Sensor.TYPE_GYROSCOPE, timeStampFile);
+                accTh = new SensorThread(sensorManager, Sensor.TYPE_ACCELEROMETER, timeStampFile);
+
+                // Creation of the file where we write the System time of the launching of the video
+                String filePath = Environment.getExternalStorageDirectory().getPath()+"/elab/" + timeStampFile + "/" + "Video_Start_Time_"+timeStampFile  +  ".csv";
+                try {
+                    writer = new PrintWriter(filePath);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                }
+
                 // work on UiThread for better performance
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        timeS = System.currentTimeMillis();
-                        Log.i("VIDEO BEGINS", "--> "+timeS+" ms");
                         try {
+                            timeS = System.currentTimeMillis();
                             mediaRecorder.start();
-
-
+                            writer.println("Starting time of the Video : "+timeS+" ms");
+                            Log.i("TRY","Starting time of the Video : "+timeS+" ms");
+                            gyroTh.start();
+                            accTh.start();
                         } catch (final Exception ex) {
-                            Log.i("OULALA", "--> "+timeS+" ms");
+                            Log.i("Problem launching the threads", "Problem launching the threads");
                         }
                     }
                 });
@@ -383,24 +375,24 @@ public class MainActivity extends Activity {
                 timer.purge();
             }*/
 
-            if(latitude != 0.0) {
-//                String timeStamp = new SimpleDateFormat("HH-mm-ss").format(new Date());
-                Long timeStamp = System.currentTimeMillis();
-//                Log.i("AUG TEST", "Time elapsed between start of the video and writing data (l=0) : "+(timeStamp - timeS1)+" ms");
-                writer.println(longitude + "," + latitude + "," + speed + "," + dist[0] + "," + (timeStamp - timeS1) + "," + linear_acc_x + "," + linear_acc_y + "," + linear_acc_z + "," +
-                        heading + "," + gyro_x + "," + gyro_y + "," + gyro_z + "," + (ta_gy - timeS1) + "," + (ta_acc - timeS1) + "," + (ta_h - timeS1));
+//            if(latitude != 0.0) {
+////                String timeStamp = new SimpleDateFormat("HH-mm-ss").format(new Date());
+//                Long timeStamp = System.currentTimeMillis();
+////                Log.i("AUG TEST", "Time elapsed between start of the video and writing data (l=0) : "+(timeStamp - timeS1)+" ms");
+//                writer.println(longitude + "," + latitude + "," + speed + "," + dist[0] + "," + (timeStamp - timeS1) + "," + linear_acc_x + "," + linear_acc_y + "," + linear_acc_z + "," +
+//                        heading + "," + gyro_x + "," + gyro_y + "," + gyro_z + "," + (ta_gy - timeS1) + "," + (ta_acc - timeS1) + "," + (ta_h - timeS1));
+//
+//            }
+//            else{
+//                dist[0] = (float) 0.0;
+////                String timeStamp = new SimpleDateFormat("HH-mm-ss").format(new Date());
+//                Long timeStamp = System.currentTimeMillis();
+////                Log.i("AUG TEST", "Time elapsed between start of the video and writing data (l!=0) : "+(timeStamp - timeS1)+" ms");
+//                writer.println(longitude_original + "," + latitude_original + "," + speed + "," + dist[0] + "," + timeStamp + "," + linear_acc_x + "," + linear_acc_y + "," + linear_acc_z + "," +
+//                        heading + "," + gyro_x + "," + gyro_y + "," + gyro_z + "," + ta_gy + "," + ta_acc + "," + ta_h);
+//
 
-            }
-            else{
-                dist[0] = (float) 0.0;
-//                String timeStamp = new SimpleDateFormat("HH-mm-ss").format(new Date());
-                Long timeStamp = System.currentTimeMillis();
-//                Log.i("AUG TEST", "Time elapsed between start of the video and writing data (l!=0) : "+(timeStamp - timeS1)+" ms");
-                writer.println(longitude_original + "," + latitude_original + "," + speed + "," + dist[0] + "," + timeStamp + "," + linear_acc_x + "," + linear_acc_y + "," + linear_acc_z + "," +
-                        heading + "," + gyro_x + "," + gyro_y + "," + gyro_z + "," + ta_gy + "," + ta_acc + "," + ta_h);
 
-
-            }
 
 
 
@@ -409,38 +401,39 @@ public class MainActivity extends Activity {
 
     public void storeData() {
 
-        String filePath = Environment.getExternalStorageDirectory().getPath()+"/elab/" + timeStampFile + "/" + timeStampFile  +  ".csv";
-        try {
-            writer = new PrintWriter(filePath);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+//        String filePath = Environment.getExternalStorageDirectory().getPath()+"/elab/" + timeStampFile + "/" + timeStampFile  +  ".csv";
+//        try {
+//            writer = new PrintWriter(filePath);
+//        } catch (FileNotFoundException e) {
+//            e.printStackTrace();
+//        }
 
-        writer.println("Longitude" + "," + "Latitude" + "," + "Speed" + "," + "Distance" + "," + "Time" + "," + "Acc X" + "," + "Acc Y" + "," + "Acc Z" + "," + "Heading"
-                + "," + "gyro_x" + "," + "gyro_y" + "," + "gyro_z");
-        LocationManager original = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        Location original_location = original.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        if(original.getLastKnownLocation(LocationManager.GPS_PROVIDER) != null){
-            latitude_original = original_location.getLatitude();
-            longitude_original = original_location.getLongitude();
-        }
+//        writer.println("Longitude" + "," + "Latitude" + "," + "Speed" + "," + "Distance" + "," + "Time" + "," + "Acc X" + "," + "Acc Y" + "," + "Acc Z" + "," + "Heading"
+//                + "," + "gyro_x" + "," + "gyro_y" + "," + "gyro_z");
+//        LocationManager original = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+//        Location original_location = original.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+//        if(original.getLastKnownLocation(LocationManager.GPS_PROVIDER) != null){
+//            latitude_original = original_location.getLatitude();
+//            longitude_original = original_location.getLongitude();
+//        }
 //        String setTextText = "Heading: " + heading + " Speed: " + speed;
 //        tv.setText(setTextText);
-        timer = new Timer();
-        timer.schedule(new SayHello(), 0, rate);
+//        timer = new Timer();
+//        timer.schedule(new SayHello(), 0, rate);
         /*if(clickFlag == 1) {
             capture.performClick();
         }
         */
-        gyroTh = new Thread(new SensorThread(sensorManager, Sensor.TYPE_GYROSCOPE));
-        accTh = new Thread(new SensorThread(sensorManager, Sensor.TYPE_ACCELEROMETER));
-        gyroTh.start();
-        accTh.start();
+//        gyroTh = new SensorThread(sensorManager, Sensor.TYPE_GYROSCOPE, timeStampFile);
+//        accTh = new SensorThread(sensorManager, Sensor.TYPE_ACCELEROMETER, timeStampFile);
+//        gyroTh.start();
+//        accTh.start();
     }
 
     public void enddata() {
-
-        writer.close();
+        Log.i("MainActivity", "Stop Threads... ! ");
+        gyroTh.stopTh();
+        accTh.stopTh();
     }
 
 
