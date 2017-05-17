@@ -16,10 +16,13 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
 import android.util.Log;
+import android.util.Range;
+import android.util.Size;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.WindowManager;
@@ -29,16 +32,27 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.samsung.android.sdk.SsdkUnsupportedException;
+import com.samsung.android.sdk.camera.SCamera;
+import com.samsung.android.sdk.camera.SCameraCharacteristics;
+import com.samsung.android.sdk.camera.SCameraManager;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.TimerTask;
+
+import static com.samsung.android.sdk.camera.impl.internal.ArrayUtils.contains;
 
 public class MainActivity extends Activity {
     private Camera mCamera;
+    private SCamera mScamera;
+    private SCameraManager mSCameraManager;
     private CameraPreview mPreview;
     private MediaRecorder mediaRecorder;
     private ImageButton capture, vid;
@@ -60,12 +74,15 @@ public class MainActivity extends Activity {
 //    Timer timer;
     int VideoFrameRate = 24;
 
+    private static final String TAG = "INFOS";
+
     LocationListener locationListener;
     LocationManager LM;
 
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -86,6 +103,32 @@ public class MainActivity extends Activity {
         chrono = (Chronometer) findViewById(R.id.chronometer);
         txt = (TextView) findViewById(R.id.txt1);
         txt.setTextColor(-16711936);
+
+//        mScamera = new SCamera();
+//        try {
+//            mScamera.initialize(this);
+//            //return;
+//        } catch (SsdkUnsupportedException e){
+//            int eType = e.getType();
+//            if (eType == SsdkUnsupportedException.VENDOR_NOT_SUPPORTED)
+//            {
+//                // The device is not a Samsung device.
+//                Log.i(TAG,"The device is not a samsung device");
+//
+//            } else if (eType == SsdkUnsupportedException.DEVICE_NOT_SUPPORTED)
+//            {
+//                // The device does not support Camera.
+//                Log.i(TAG,"The device does not support Camera.");
+//
+//            } else if (eType == SsdkUnsupportedException.LIBRARY_NOT_INSTALLED)
+//            {
+//                // There is a SDK version mismatch.
+//                Log.i(TAG,"There is a SDK version mismatch.");
+//
+//            }
+//        }
+
+
 
 //        vid = (ImageButton) findViewById(R.id.imageButton);
 //        vid.setVisibility(View.GONE);
@@ -122,10 +165,33 @@ public class MainActivity extends Activity {
             toast.show();
             finish();
         }
+
+        mSCamera = new SCamera();
+        try {
+            mSCamera.initialize(this);
+        } catch (SsdkUnsupportedException e) {
+            showAlertDialog("Fail to initialize SCamera.", true);
+            Log.i(TAG,"Fail to initialize SCamera.");
+            return;
+        }
+
+//        mSCameraManager = mScamera.getSCameraManager();
+//        int versionCode = mScamera.getVersionCode();
+//        String versionName = mScamera.getVersionName();
+//        boolean isOK = mScamera.isFeatureEnabled(SCamera.SCAMERA_IMAGE);
+//        boolean isOK2 = mScamera.isFeatureEnabled(SCamera.SCAMERA_PROCESSOR);
+//
+//        Log.i(TAG,"Log : "+versionName+", log : "+versionCode+", log is Camera_Image : "+isOK+", Camera_Processor : "+isOK2+"--");
+
+        if (!checkRequiredFeatures()) return;
+
         if (mCamera == null) {
             mCamera = Camera.open(findBackFacingCamera());
             mPreview.refreshCamera(mCamera);
         }
+
+
+
 //        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
 //        sensorManager.registerListener(this, head, SensorManager.SENSOR_DELAY_FASTEST);
 //        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
@@ -217,7 +283,7 @@ public class MainActivity extends Activity {
 */
             } else {
 
-                timeS1 = System.currentTimeMillis();
+                timeS1 = System.nanoTime();
                 timeStampFile = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
                 File wallpaperDirectory = new File(Environment.getExternalStorageDirectory().getPath()+"/elab/");
                 wallpaperDirectory.mkdirs();
@@ -245,17 +311,17 @@ public class MainActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try {
-                            timeS = System.currentTimeMillis();
-                            mediaRecorder.start();
-                            writer.println("Starting time of the Video : "+timeS+" ms");
-                            Log.i("TRY","Starting time of the Video : "+timeS+" ms");
+                            timeS = System.nanoTime();
                             gyroTh.start();
                             accTh.start();
+                            mediaRecorder.start();
                         } catch (final Exception ex) {
-                            Log.i("Problem launching the threads", "Problem launching the threads");
+                            Log.i(TAG, "Problem launching the threads");
                         }
                     }
                 });
+                writer.println("Starting time of the Video");
+                writer.println("! "+timeS+" ms");
                 Toast.makeText(MainActivity.this, "Recording...", Toast.LENGTH_LONG).show();
 
                 Camera.Parameters params = mCamera.getParameters();
@@ -610,4 +676,127 @@ public class MainActivity extends Activity {
                 });
         builder.show();
     }
+
+    private String mCameraId;
+    private SCamera mSCamera;
+    private SCameraCharacteristics mCharacteristics;
+    private List<VideoParameter> mVideoParameterList = new ArrayList<>();
+
+    private boolean checkRequiredFeatures() {
+        Log.i(TAG, "Enter in checkRequiredFeatures !");
+        try {
+            mCameraId = null;
+
+            // Find camera device that facing to given facing parameter.
+            for (String id : mSCamera.getSCameraManager().getCameraIdList()) {
+                SCameraCharacteristics cameraCharacteristics = mSCamera.getSCameraManager().getCameraCharacteristics(id);
+                if (cameraCharacteristics.get(SCameraCharacteristics.LENS_FACING) == SCameraCharacteristics.LENS_FACING_BACK) {
+                    mCameraId = id;
+                    break;
+                }
+            }
+
+            if (mCameraId == null) {
+                showAlertDialog("No back-facing camera exist.", true);
+                Log.i(TAG, "No back-facing camera exist.");
+
+                return false;
+            }
+
+            if (Build.VERSION.SDK_INT < 23) {
+                showAlertDialog("Device running Android prior to M is not compatible with the Constrained high speed session APIs.", true);
+                Log.e(TAG, "Device running Android prior to M is not compatible with the Constrained high speed session APIs.");
+                Log.i(TAG, "Device running Android prior to M is not compatible with the Constrained high speed session APIs.");
+                return false;
+            }
+
+            // acquires camera characteristics
+            mCharacteristics = mSCamera.getSCameraManager().getCameraCharacteristics(mCameraId);
+
+            if (!contains(mCharacteristics.get(SCameraCharacteristics.CONTROL_AF_AVAILABLE_MODES), SCameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_PICTURE)) {
+                showAlertDialog("Required AF mode is not supported.", true);
+                Log.i(TAG, "Required AF mode is not supported.");
+                return false;
+            }
+
+            if (!contains(mCharacteristics.get(SCameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES), SCameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO) ||
+                    mCharacteristics.get(SCameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getHighSpeedVideoSizes().length == 0 ||
+                    mCharacteristics.get(SCameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getHighSpeedVideoFpsRanges().length == 0) {
+                showAlertDialog("High speed video recording capability is not supported.", true);
+                Log.i(TAG, "High speed video recording capability is not supported.");
+                return false;
+            }
+
+
+            mVideoParameterList.clear();
+
+            for (Size videoSize : mCharacteristics.get(SCameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getHighSpeedVideoSizes()) {
+                for (Range<Integer> fpsRange : mCharacteristics.get(SCameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getHighSpeedVideoFpsRangesFor(videoSize)) {
+
+                    //we will record constant fps video
+                    if (fpsRange.getLower().equals(fpsRange.getUpper())) {
+                        mVideoParameterList.add(new VideoParameter(videoSize, fpsRange));
+                        Log.i(TAG, "fpsRange.getUpper() : "+fpsRange.getUpper()+" !");
+                    } else {
+                        Log.i(TAG, "No fpsRange.getUpper().... : "+fpsRange.getUpper()+" !");
+                    }
+                }
+            }
+
+        } catch (CameraAccessException e) {
+            showAlertDialog("Cannot access the camera.", true);
+            Log.e(TAG, "Cannot access the camera.", e);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Shows alert dialog.
+     */
+    private void showAlertDialog(String message, final boolean finishActivity) {
+
+        final AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        dialog.setMessage(message)
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .setTitle("Alert")
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        if (finishActivity) finish();
+                    }
+                }).setCancelable(false);
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                dialog.show();
+            }
+        });
+    }
+
+    private static class VideoParameter {
+        final Size mVideoSize;
+        final Range<Integer> mFpsRange;
+
+        VideoParameter(Size videoSize, Range<Integer> fpsRange) {
+            mVideoSize = new Size(videoSize.getWidth(), videoSize.getHeight());
+            mFpsRange = new Range<>(fpsRange.getLower(), fpsRange.getUpper());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof VideoParameter &&
+                    mVideoSize.equals(((VideoParameter) o).mVideoSize) &&
+                    mFpsRange.equals(((VideoParameter) o).mFpsRange);
+        }
+
+        @Override
+        public String toString() {
+            return mVideoSize.toString() + " @ " + mFpsRange.getUpper() + "FPS";
+        }
+    }
+
 }

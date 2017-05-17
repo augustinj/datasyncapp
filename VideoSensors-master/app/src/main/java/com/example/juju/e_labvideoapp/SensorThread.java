@@ -46,7 +46,7 @@ public class SensorThread extends Thread {
         }
         Log.i("SensorThread","The writer !");
         writer.println(sensorName + "," + "Time Stamp:"+timeStampFile);
-        writer.println("Time" + "," + "Value X" + "," + "Value Y" + "," + "Value Z");
+        writer.println("Time (nanosec)" + "," + "Value X" + "," + "Value Y" + "," + "Value Z");
     }
 
     public SensorEventListener getGyroListener() {
@@ -67,7 +67,7 @@ public class SensorThread extends Thread {
                 float valY = sensorEvent.values[1];
                 float valZ = sensorEvent.values[2];
 
-                Long timeStamp = System.currentTimeMillis();
+                Long timeStamp = System.nanoTime();
                 writer.println(timeStamp + "," + valX + "," + valY + "," + valZ);
                 Log.i("SensorThread","value X :"+valX);
             } else {
